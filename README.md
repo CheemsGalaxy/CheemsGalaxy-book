@@ -3,4 +3,5 @@ powershell -ExecutionPolicy Bypass -File "C:\Users\Cheems\Downloads\Edge-Optimiz
 
 
 https://github.com/YouTube-Music-V2/youtube-music <br>
-https://github.com/markterence/discord-quest-completer
+https://github.com/markterence/discord-quest-completer <br>
+https://github.com/realidkroo/Mochy-Music/releases/tag/Mochy-8.3.1
