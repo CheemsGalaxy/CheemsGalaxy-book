@@ -436,9 +436,9 @@
                     </div>
                 </div>
 
-                <button id="btnExportZip" onclick="exportAllAsZip()" disabled class="w-full py-2.5 px-4 rounded-lg bg-zinc-900 text-white text-xs font-semibold flex items-center justify-center gap-2 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs">
-                    <i data-lucide="archive" class="w-4 h-4"></i>
-                    <span id="btnExportLabel">Tải tất cả (.ZIP)</span>
+                <button id="btnExportZip" onclick="handlePrimaryExport()" disabled class="w-full py-2.5 px-4 rounded-lg bg-zinc-900 text-white text-xs font-semibold flex items-center justify-center gap-2 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs">
+                    <i id="btnExportIcon" data-lucide="download" class="w-4 h-4"></i>
+                    <span id="btnExportLabel">Tải xuống</span>
                 </button>
             </div>
         </aside>
@@ -694,8 +694,21 @@
             
             const btnExport = document.getElementById('btnExportZip');
             const btnExportLabel = document.getElementById('btnExportLabel');
+            const btnExportIcon = document.getElementById('btnExportIcon');
+            const fmtExt = state.exportFormat === 'image/jpeg' ? 'JPG' : state.exportFormat.split('/')[1].toUpperCase();
+
             btnExport.disabled = count === 0;
-            btnExportLabel.textContent = count > 0 ? `Tải tất cả (${count} ảnh .ZIP)` : 'Tải tất cả (.ZIP)';
+            if (count === 0) {
+                btnExportLabel.textContent = 'Tải xuống';
+                btnExportIcon.setAttribute('data-lucide', 'download');
+            } else if (count === 1) {
+                btnExportLabel.textContent = `Tải xuống ảnh (.${fmtExt})`;
+                btnExportIcon.setAttribute('data-lucide', 'download');
+            } else {
+                btnExportLabel.textContent = `Tải xuống tất cả (${count} ảnh .ZIP)`;
+                btnExportIcon.setAttribute('data-lucide', 'archive');
+            }
+            lucide.createIcons();
 
             // Toggle empty state vs grid
             const emptyDropzone = document.getElementById('emptyDropzone');
@@ -726,8 +739,7 @@
                 ? `${state.corners.tl}/${state.corners.tr}/${state.corners.br}/${state.corners.bl}${state.unit}`
                 : `${state.uniformRadius}${state.unit}`;
             const curveText = state.curveType === 'squircle' ? 'iOS Squircle' : 'Circular';
-            const fmtText = state.exportFormat.split('/')[1].toUpperCase();
-            document.getElementById('statSummary').textContent = `Bo góc: ${rText} · ${curveText} · Xuất ${fmtText}`;
+            document.getElementById('statSummary').textContent = `Bo góc: ${rText} · ${curveText} · Xuất ${fmtExt}`;
         }
 
         function createImageCard(item) {
@@ -1242,8 +1254,17 @@
             showToast(`Đã tải xuống ${getOutputFilename(item.name)}`);
         }
 
-        async function exportAllAsZip() {
+        async function handlePrimaryExport() {
             if (state.images.length === 0) return;
+            if (state.images.length === 1) {
+                await downloadSingleImage(state.images[0].id);
+            } else {
+                await exportAllAsZip();
+            }
+        }
+
+        async function exportAllAsZip() {
+            if (state.images.length <= 1) return;
 
             const btn = document.getElementById('btnExportZip');
             const progressWrap = document.getElementById('exportProgressWrap');
