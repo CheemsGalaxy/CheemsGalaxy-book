@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bo tròn góc ảnh hàng loạt — Precision Image Studio</title>
+    
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- JSZip for Batch ZIP Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        studio: {
+                            bg: '#F8F9FA',
+                            panel: '#FFFFFF',
+                            border: '#E4E4E7',
+                            borderHover: '#D4D4D8',
+                            text: '#18181B',
+                            muted: '#71717A',
+                            accent: '#18181B',
+                            accentHover: '#27272A',
+                            blue: '#2563EB',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Precision Styling */
+        body {
+            background-color: #F8F9FA;
+            color: #18181B;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Checkerboard pattern for transparency preview */
+        .bg-checkerboard {
+            background-color: #ffffff;
+            background-image: 
+                linear-gradient(45deg, #F1F5F9 25%, transparent 25%), 
+                linear-gradient(-45deg, #F1F5F9 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #F1F5F9 75%), 
+                linear-gradient(-45deg, transparent 75%, #F1F5F9 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+        }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            border-radius: 999px;
+            background: #E4E4E7;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #18181B;
+            border: 2px solid #FFFFFF;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            margin-top: -5px;
+            transition: transform 0.1s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #D4D4D8;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #A1A1AA;
+        }
+
+        /* Number input arrows hide */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-zinc-900 selection:text-white">
+
+    <!-- Top Studio Header -->
+    <header class="h-13 bg-white border-b border-studio-border px-4 lg:px-6 flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-md bg-zinc-900 text-white flex items-center justify-center shadow-xs">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/>
+                    <path d="M16 3h5v5"/>
+                    <path d="M16 8a5 5 0 0 1 5-5"/>
+                </svg>
+            </div>
+            <div class="flex items-baseline gap-2.5">
+                <h1 class="text-sm font-semibold tracking-tight text-zinc-900">Bo tròn góc ảnh hàng loạt</h1>
+                <span class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-zinc-100 text-zinc-600 border border-zinc-200/80">
+                    100% LOCAL · CLIENT-SIDE
+                </span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="btnAddMoreTop" onclick="document.getElementById('fileInput').click()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-700 bg-white border border-studio-border rounded-md hover:bg-zinc-50 hover:border-zinc-300 transition-colors">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>Thêm ảnh</span>
+            </button>
+            <button id="btnClearAll" onclick="clearAllImages()" class="hidden items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-studio-border rounded-md hover:bg-red-50 hover:border-red-200 transition-colors">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Xóa tất cả</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main 2-Column Studio Workspace -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- LEFT / MAIN: Live Canvas Preview Area -->
+        <main class="flex-1 flex flex-col min-w-0 bg-studio-bg overflow-hidden relative">
+            
+            <!-- Status / Info Sub-bar -->
+            <div id="statusBar" class="hidden h-10 bg-white/80 backdrop-blur-xs border-b border-studio-border px-4 lg:px-6 items-center justify-between text-xs text-studio-muted shrink-0">
+                <div class="flex items-center gap-4">
+                    <span class="font-medium text-zinc-900"><span id="statCount" class="font-mono">0</span> ảnh</span>
+                    <span class="text-zinc-300">|</span>
+                    <span id="statSummary" class="font-mono text-[11px] text-zinc-600 truncate">Bán kính: 32px · Circular</span>
+                </div>
+                <div class="hidden sm:flex items-center gap-2 text-[11px]">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>Xử lý trực tiếp trên trình duyệt</span>
+                </div>
+            </div>
+
+            <!-- Scrollable Content Area -->
+            <div id="workspaceScroll" class="flex-1 overflow-y-auto p-4 lg:p-6">
+                
+                <!-- Empty Dropzone State -->
+                <div id="emptyDropzone" class="h-full min-h-[380px] flex flex-col items-center justify-center border border-dashed border-zinc-300 rounded-xl bg-white p-8 text-center transition-all duration-150">
+                    <div class="w-12 h-12 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-700 mb-4">
+                        <i data-lucide="image-plus" class="w-6 h-6 stroke-[1.75]"></i>
+                    </div>
+                    <h2 class="text-base font-semibold text-zinc-900 mb-1">Kéo thả ảnh vào đây hoặc chọn từ máy</h2>
+                    <p class="text-xs text-zinc-500 max-w-md mb-6 leading-relaxed">
+                        Hỗ trợ xử lý hàng loạt JPG, PNG, WebP. Bạn cũng có thể nhấn <kbd class="px-1.5 py-0.5 text-[11px] font-mono bg-zinc-100 border border-zinc-200 rounded text-zinc-700">Ctrl + V</kbd> để dán ảnh trực tiếp từ clipboard.
+                    </p>
+                    
+                    <div class="flex flex-wrap items-center justify-center gap-2.5">
+                        <button onclick="document.getElementById('fileInput').click()" class="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors shadow-xs">
+                            <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                            <span>Chọn nhiều ảnh</span>
+                        </button>
+                        <button onclick="loadSampleImages()" class="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-zinc-700 bg-white border border-zinc-200 rounded-lg hover:bg-zinc-50 hover:border-zinc-300 transition-colors">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-zinc-500"></i>
+                            <span>Dùng 4 ảnh mẫu thử nghiệm</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Image Preview Grid -->
+                <div id="previewGrid" class="hidden grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 pb-8">
+                    <!-- Cards injected dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Drag Over Overlay -->
+            <div id="dragOverlay" class="hidden absolute inset-3 bg-white/90 backdrop-blur-xs border-2 border-dashed border-zinc-900 rounded-xl z-30 flex-col items-center justify-center pointer-events-none">
+                <div class="w-12 h-12 rounded-xl bg-zinc-900 text-white flex items-center justify-center mb-3">
+                    <i data-lucide="download" class="w-6 h-6"></i>
+                </div>
+                <p class="text-sm font-semibold text-zinc-900">Thả ảnh vào để thêm vào hàng đợi</p>
+                <p class="text-xs text-zinc-500 mt-1">Hỗ trợ PNG, JPG, WebP</p>
+            </div>
+        </main>
+
+        <!-- RIGHT: Precision Inspector Sidebar -->
+        <aside class="w-full lg:w-[340px] xl:w-[360px] bg-white border-t lg:border-t-0 lg:border-l border-studio-border flex flex-col shrink-0 h-[52vh] lg:h-full z-10">
+            
+            <!-- Inspector Scrollable Controls -->
+            <div class="flex-1 overflow-y-auto divide-y divide-studio-border">
+                
+                <!-- Section 1: Corner Style & Presets -->
+                <div class="p-4 space-y-3.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Kiểu bo góc</span>
+                        <span class="text-[11px] font-mono text-zinc-400" id="curveBadge">Circular</span>
+                    </div>
+
+                    <!-- Curve Type Segmented Control -->
+                    <div class="grid grid-cols-2 gap-1 p-1 bg-zinc-100 rounded-lg border border-zinc-200/60">
+                        <button type="button" id="btnCurveCircular" onclick="setCurveType('circular')" class="py-1.5 px-2.5 text-xs font-medium rounded-md bg-white text-zinc-900 shadow-2xs transition-all">
+                            Bo tròn chuẩn
+                        </button>
+                        <button type="button" id="btnCurveSquircle" onclick="setCurveType('squircle')" class="py-1.5 px-2.5 text-xs font-medium rounded-md text-zinc-600 hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5">
+                            <span>iOS Squircle</span>
+                            <span class="text-[10px] font-mono px-1 rounded bg-zinc-200/70 text-zinc-600">G2</span>
+                        </button>
+                    </div>
+
+                    <!-- Quick Presets -->
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-700 mb-2">Mẫu nhanh (Presets)</label>
+                        <div class="grid grid-cols-5 gap-1.5">
+                            <button type="button" onclick="applyPreset(12, 'px', 'circular')" class="preset-btn py-1.5 px-1 text-[11px] font-medium border border-zinc-200 rounded-md hover:border-zinc-400 hover:bg-zinc-50 text-zinc-700 transition-colors text-center">
+                                Nhẹ<br><span class="font-mono text-[10px] text-zinc-400">12px</span>
+                            </button>
+                            <button type="button" onclick="applyPreset(32, 'px', 'circular')" class="preset-btn py-1.5 px-1 text-[11px] font-medium border border-zinc-900 bg-zinc-900 text-white rounded-md transition-colors text-center">
+                                Vừa<br><span class="font-mono text-[10px] text-zinc-300">32px</span>
+                            </button>
+                            <button type="button" onclick="applyPreset(64, 'px', 'circular')" class="preset-btn py-1.5 px-1 text-[11px] font-medium border border-zinc-200 rounded-md hover:border-zinc-400 hover:bg-zinc-50 text-zinc-700 transition-colors text-center">
+                                Lớn<br><span class="font-mono text-[10px] text-zinc-400">64px</span>
+                            </button>
+                            <button type="button" onclick="applyPreset(22, '%', 'squircle')" class="preset-btn py-1.5 px-1 text-[11px] font-medium border border-zinc-200 rounded-md hover:border-zinc-400 hover:bg-zinc-50 text-zinc-700 transition-colors text-center">
+                                Icon<br><span class="font-mono text-[10px] text-zinc-400">22%</span>
+                            </button>
+                            <button type="button" onclick="applyPreset(50, '%', 'circular')" class="preset-btn py-1.5 px-1 text-[11px] font-medium border border-zinc-200 rounded-md hover:border-zinc-400 hover:bg-zinc-50 text-zinc-700 transition-colors text-center">
+                                Tròn<br><span class="font-mono text-[10px] text-zinc-400">50%</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Radius Controls (Uniform vs Individual) -->
+                <div class="p-4 space-y-3.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Bán kính bo góc</span>
+                        
+                        <div class="flex items-center gap-1.5">
+                            <!-- Unit Toggle (px / %) -->
+                            <div class="inline-flex rounded-md border border-zinc-200 p-0.5 bg-zinc-50 text-[11px] font-mono">
+                                <button type="button" id="unitPx" onclick="setUnit('px')" class="px-1.5 py-0.5 rounded bg-white text-zinc-900 font-semibold shadow-2xs">px</button>
+                                <button type="button" id="unitPct" onclick="setUnit('%')" class="px-1.5 py-0.5 rounded text-zinc-500 hover:text-zinc-900">%</button>
+                            </div>
+
+                            <!-- Individual Corners Toggle -->
+                            <button type="button" id="btnToggleIndividual" onclick="toggleIndividualCorners()" title="Tùy chỉnh từng góc riêng biệt" class="p-1.5 rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 transition-colors">
+                                <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Uniform Radius Control -->
+                    <div id="uniformControl" class="space-y-2">
+                        <div class="flex items-center justify-between gap-3">
+                            <input type="range" id="uniformSlider" min="0" max="300" value="32" class="flex-1" oninput="updateUniformRadius(this.value)">
+                            <div class="flex items-center border border-zinc-200 rounded-md bg-zinc-50 px-2 py-1 w-20 focus-within:border-zinc-900 focus-within:bg-white">
+                                <input type="number" id="uniformInput" min="0" max="2000" value="32" class="w-full text-xs font-mono text-right bg-transparent focus:outline-none text-zinc-900" oninput="updateUniformRadius(this.value)">
+                                <span id="uniformUnitLabel" class="text-[11px] font-mono text-zinc-400 ml-1">px</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Individual 4 Corners Control -->
+                    <div id="individualControl" class="hidden grid-cols-2 gap-2.5 pt-1">
+                        <!-- Top Left -->
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between text-[11px] text-zinc-500">
+                                <span>Trên - Trái</span>
+                                <span class="font-mono text-[10px]">TL</span>
+                            </div>
+                            <div class="flex items-center border border-zinc-200 rounded-md bg-zinc-50 px-2 py-1 focus-within:border-zinc-900 focus-within:bg-white">
+                                <i data-lucide="corner-up-left" class="w-3 h-3 text-zinc-400 mr-1.5"></i>
+                                <input type="number" id="radTL" min="0" max="2000" value="32" class="w-full text-xs font-mono text-right bg-transparent focus:outline-none" oninput="updateCornerRadius('tl', this.value)">
+                            </div>
+                        </div>
+                        <!-- Top Right -->
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between text-[11px] text-zinc-500">
+                                <span>Trên - Phải</span>
+                                <span class="font-mono text-[10px]">TR</span>
+                            </div>
+                            <div class="flex items-center border border-zinc-200 rounded-md bg-zinc-50 px-2 py-1 focus-within:border-zinc-900 focus-within:bg-white">
+                                <i data-lucide="corner-up-right" class="w-3 h-3 text-zinc-400 mr-1.5"></i>
+                                <input type="number" id="radTR" min="0" max="2000" value="32" class="w-full text-xs font-mono text-right bg-transparent focus:outline-none" oninput="updateCornerRadius('tr', this.value)">
+                            </div>
+                        </div>
+                        <!-- Bottom Left -->
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between text-[11px] text-zinc-500">
+                                <span>Dưới - Trái</span>
+                                <span class="font-mono text-[10px]">BL</span>
+                            </div>
+                            <div class="flex items-center border border-zinc-200 rounded-md bg-zinc-50 px-2 py-1 focus-within:border-zinc-900 focus-within:bg-white">
+                                <i data-lucide="corner-down-left" class="w-3 h-3 text-zinc-400 mr-1.5"></i>
+                                <input type="number" id="radBL" min="0" max="2000" value="32" class="w-full text-xs font-mono text-right bg-transparent focus:outline-none" oninput="updateCornerRadius('bl', this.value)">
+                            </div>
+                        </div>
+                        <!-- Bottom Right -->
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between text-[11px] text-zinc-500">
+                                <span>Dưới - Phải</span>
+                                <span class="font-mono text-[10px]">BR</span>
+                            </div>
+                            <div class="flex items-center border border-zinc-200 rounded-md bg-zinc-50 px-2 py-1 focus-within:border-zinc-900 focus-within:bg-white">
+                                <i data-lucide="corner-down-right" class="w-3 h-3 text-zinc-400 mr-1.5"></i>
+                                <input type="number" id="radBR" min="0" max="2000" value="32" class="w-full text-xs font-mono text-right bg-transparent focus:outline-none" oninput="updateCornerRadius('br', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Background & Border -->
+                <div class="p-4 space-y-4">
+                    <!-- Background Fill -->
+                    <div class="space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Nền góc cắt</span>
+                            <span id="bgTypeLabel" class="text-[11px] font-mono text-zinc-500">Trong suốt</span>
+                        </div>
+
+                        <div class="flex items-center gap-1.5">
+                            <!-- Transparent Swatch -->
+                            <button type="button" onclick="setBgMode('transparent')" id="bgBtnTransparent" title="Trong suốt (Transparent)" class="h-7 px-2.5 rounded-md border-2 border-zinc-900 bg-checkerboard flex items-center gap-1.5 text-[11px] font-medium text-zinc-800">
+                                <span>Trong suốt</span>
+                            </button>
+                            <!-- White -->
+                            <button type="button" onclick="setBgMode('color', '#FFFFFF')" title="Nền trắng" class="w-7 h-7 rounded-md border border-zinc-300 bg-white hover:scale-105 transition-transform"></button>
+                            <!-- Black -->
+                            <button type="button" onclick="setBgMode('color', '#09090B')" title="Nền đen" class="w-7 h-7 rounded-md border border-zinc-300 bg-zinc-950 hover:scale-105 transition-transform"></button>
+                            <!-- Light Gray -->
+                            <button type="button" onclick="setBgMode('color', '#F4F4F5')" title="Nền xám nhạt" class="w-7 h-7 rounded-md border border-zinc-300 bg-zinc-100 hover:scale-105 transition-transform"></button>
+                            <!-- Custom Color Picker -->
+                            <label class="relative w-7 h-7 rounded-md border border-zinc-300 overflow-hidden cursor-pointer hover:scale-105 transition-transform flex items-center justify-center bg-zinc-50" title="Chọn màu tùy ý">
+                                <input type="color" id="bgColorPicker" value="#FFFFFF" class="opacity-0 absolute inset-0 w-full h-full cursor-pointer" oninput="setBgMode('color', this.value)">
+                                <i data-lucide="pipette" class="w-3.5 h-3.5 text-zinc-600 pointer-events-none"></i>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Border / Stroke -->
+                    <div class="space-y-2.5 pt-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Viền khung (Border)</span>
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="borderToggle" class="sr-only peer" onchange="toggleBorder(this.checked)">
+                                <div class="w-8 h-4.5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-3.5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-zinc-900 relative"></div>
+                            </label>
+                        </div>
+
+                        <div id="borderControls" class="hidden space-y-2 pt-1">
+                            <div class="flex items-center gap-2">
+                                <input type="range" id="borderWidthSlider" min="1" max="40" value="4" class="flex-1" oninput="updateBorderWidth(this.value)">
+                                <div class="flex items-center border border-zinc-200 rounded-md bg-zinc-50 px-2 py-1 w-16">
+                                    <input type="number" id="borderWidthInput" min="1" max="100" value="4" class="w-full text-xs font-mono text-right bg-transparent focus:outline-none" oninput="updateBorderWidth(this.value)">
+                                    <span class="text-[10px] font-mono text-zinc-400 ml-0.5">px</span>
+                                </div>
+                                <input type="color" id="borderColorPicker" value="#18181B" class="w-7 h-7 rounded border border-zinc-200 cursor-pointer bg-transparent p-0.5" oninput="updateBorderColor(this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: Export Settings -->
+                <div class="p-4 space-y-3.5">
+                    <span class="block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Cấu hình xuất file</span>
+                    
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <!-- Format -->
+                        <div>
+                            <label class="block text-[11px] text-zinc-500 mb-1">Định dạng</label>
+                            <select id="exportFormat" onchange="updateExportFormat(this.value)" class="w-full text-xs font-medium bg-zinc-50 border border-zinc-200 rounded-md px-2.5 py-1.5 text-zinc-900 focus:outline-none focus:border-zinc-900">
+                                <option value="image/png">PNG (Trong suốt)</option>
+                                <option value="image/webp">WebP (Nhẹ, trong suốt)</option>
+                                <option value="image/jpeg">JPEG (Nền đặc)</option>
+                            </select>
+                        </div>
+                        <!-- Suffix -->
+                        <div>
+                            <label class="block text-[11px] text-zinc-500 mb-1">Hậu tố tên file</label>
+                            <input type="text" id="fileSuffix" value="-rounded" placeholder="-rounded" class="w-full text-xs font-mono bg-zinc-50 border border-zinc-200 rounded-md px-2.5 py-1.5 text-zinc-900 focus:outline-none focus:border-zinc-900">
+                        </div>
+                    </div>
+
+                    <!-- Quality Slider (for WebP / JPEG) -->
+                    <div id="qualityControl" class="hidden space-y-1.5 pt-1">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-zinc-600">Chất lượng nén</span>
+                            <span id="qualityValue" class="font-mono font-medium text-zinc-900">92%</span>
+                        </div>
+                        <input type="range" id="qualitySlider" min="10" max="100" value="92" class="w-full" oninput="updateQuality(this.value)">
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Sticky Bottom Export Action -->
+            <div class="p-4 bg-zinc-50/80 border-t border-studio-border shrink-0 space-y-2">
+                <!-- Progress Bar (hidden until export) -->
+                <div id="exportProgressWrap" class="hidden space-y-1.5">
+                    <div class="flex justify-between text-[11px] font-mono text-zinc-600">
+                        <span id="exportProgressText">Đang nén file ZIP...</span>
+                        <span id="exportProgressPct">0%</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                        <div id="exportProgressBar" class="h-full bg-zinc-900 transition-all duration-150" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <button id="btnExportZip" onclick="exportAllAsZip()" disabled class="w-full py-2.5 px-4 rounded-lg bg-zinc-900 text-white text-xs font-semibold flex items-center justify-center gap-2 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs">
+                    <i data-lucide="archive" class="w-4 h-4"></i>
+                    <span id="btnExportLabel">Tải tất cả (.ZIP)</span>
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" multiple accept="image/png, image/jpeg, image/webp" class="hidden" onchange="handleFileSelect(event)">
+
+    <!-- Lightbox Modal for Before/After Inspection -->
+    <div id="lightboxModal" class="hidden fixed inset-0 z-50 bg-zinc-950/75 backdrop-blur-xs flex items-center justify-center p-4 lg:p-8" onclick="closeLightbox(event)">
+        <div class="bg-white border border-zinc-200 rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="h-12 px-4 border-b border-zinc-200 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span id="lbTitle" class="text-xs font-semibold text-zinc-900 truncate">image.png</span>
+                    <span id="lbDimensions" class="text-[11px] font-mono text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded">1200 × 800</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="lbToggleCompare" onmousedown="showOriginalInLightbox(true)" onmouseup="showOriginalInLightbox(false)" onmouseleave="showOriginalInLightbox(false)" ontouchstart="showOriginalInLightbox(true)" ontouchend="showOriginalInLightbox(false)" class="px-2.5 py-1 text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-md transition-colors select-none">
+                        Giữ để xem ảnh gốc
+                    </button>
+                    <button id="lbDownloadBtn" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium bg-zinc-900 text-white rounded-md hover:bg-zinc-800 transition-colors">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Tải ảnh này</span>
+                    </button>
+                    <button onclick="closeLightbox()" class="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-md hover:bg-zinc-100">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Modal Canvas Container -->
+            <div class="flex-1 bg-checkerboard p-6 flex items-center justify-center overflow-auto min-h-[300px]">
+                <canvas id="lightboxCanvas" class="max-w-full max-h-[68vh] object-contain shadow-sm"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-4 left-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        // =========================================================================
+        // 1. STATE MANAGEMENT
+        // =========================================================================
+        const state = {
+            images: [], // { id, name, width, height, imgElement, previewCanvas }
+            curveType: 'circular', // 'circular' | 'squircle'
+            isIndividual: false,
+            unit: 'px', // 'px' | '%'
+            uniformRadius: 32,
+            corners: { tl: 32, tr: 32, br: 32, bl: 32 },
+            bgMode: 'transparent', // 'transparent' | 'color'
+            bgColor: '#FFFFFF',
+            borderEnabled: false,
+            borderWidth: 4,
+            borderColor: '#18181B',
+            exportFormat: 'image/png',
+            quality: 0.92,
+            lightboxImageId: null,
+        };
+
+        let renderDebounceTimer = null;
+
+        // Initialize Icons
+        lucide.createIcons();
+
+        // =========================================================================
+        // 2. CORE GEOMETRY & SQUIRCLE / ROUNDED RENDERING ENGINE
+        // =========================================================================
+        
+        /**
+         * Draws either a standard circular rounded rectangle or an Apple-style
+         * continuous curvature superellipse (Squircle) path on a 2D canvas context.
+         */
+        function traceRoundedPath(ctx, x, y, w, h, radii, curveType) {
+            const maxR = Math.min(w, h) / 2;
+            const tl = Math.min(Math.max(0, radii.tl), maxR);
+            const tr = Math.min(Math.max(0, radii.tr), maxR);
+            const br = Math.min(Math.max(0, radii.br), maxR);
+            const bl = Math.min(Math.max(0, radii.bl), maxR);
+
+            ctx.beginPath();
+
+            if (curveType === 'circular' || (tl === 0 && tr === 0 && br === 0 && bl === 0)) {
+                if (ctx.roundRect) {
+                    ctx.roundRect(x, y, w, h, [tl, tr, br, bl]);
+                } else {
+                    ctx.moveTo(x + tl, y);
+                    ctx.lineTo(x + w - tr, y);
+                    ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
+                    ctx.lineTo(x + w, y + h - br);
+                    ctx.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+                    ctx.lineTo(x + bl, y + h);
+                    ctx.quadraticCurveTo(x, y + h, x, y + h - bl);
+                    ctx.lineTo(x, y + tl);
+                    ctx.quadraticCurveTo(x, y, x + tl, y);
+                    ctx.closePath();
+                }
+                return;
+            }
+
+            // Apple iOS-like Squircle (Continuous Corner Smoothing)
+            // Uses extended anchor points + cubic bezier control points for G2 continuity
+            const smoothFactor = 1.28; // Extended tangent length
+            const handleRatio = 0.22;  // Bezier handle pull for superellipse feel
+
+            const drawSquircleCorner = (corner, r) => {
+                const ext = Math.min(r * smoothFactor, maxR);
+                const hDist = ext * handleRatio;
+
+                if (corner === 'tr') {
+                    ctx.lineTo(x + w - ext, y);
+                    ctx.bezierCurveTo(x + w - hDist, y, x + w, y + hDist, x + w, y + ext);
+                } else if (corner === 'br') {
+                    ctx.lineTo(x + w, y + h - ext);
+                    ctx.bezierCurveTo(x + w, y + h - hDist, x + w - hDist, y + h, x + w - ext, y + h);
+                } else if (corner === 'bl') {
+                    ctx.lineTo(x + ext, y + h);
+                    ctx.bezierCurveTo(x + hDist, y + h, x, y + h - hDist, x, y + h - ext);
+                } else if (corner === 'tl') {
+                    ctx.lineTo(x, y + ext);
+                    ctx.bezierCurveTo(x, y + hDist, x + hDist, y, x + ext, y);
+                }
+            };
+
+            const startExt = Math.min(tl * smoothFactor, maxR);
+            ctx.moveTo(x + startExt, y);
+            drawSquircleCorner('tr', tr);
+            drawSquircleCorner('br', br);
+            drawSquircleCorner('bl', bl);
+            drawSquircleCorner('tl', tl);
+            ctx.closePath();
+        }
+
+        /**
+         * Resolves pixel radii for a specific image dimension based on current state
+         */
+        function getResolvedRadii(width, height) {
+            const minSide = Math.min(width, height);
+            const raw = state.isIndividual 
+                ? state.corners 
+                : { tl: state.uniformRadius, tr: state.uniformRadius, br: state.uniformRadius, bl: state.uniformRadius };
+
+            const convert = (val) => {
+                if (state.unit === '%') {
+                    return (val / 100) * minSide;
+                }
+                return val;
+            };
+
+            return {
+                tl: convert(raw.tl),
+                tr: convert(raw.tr),
+                br: convert(raw.br),
+                bl: convert(raw.bl)
+            };
+        }
+
+        /**
+         * Renders an image onto a target canvas at specified dimensions (full-res or thumbnail)
+         */
+        function renderProcessedImage(imgObj, targetCanvas, maxDimension = null, showOriginal = false) {
+            let w = imgObj.width;
+            let h = imgObj.height;
+            let scale = 1;
+
+            if (maxDimension && (w > maxDimension || h > maxDimension)) {
+                scale = maxDimension / Math.max(w, h);
+                w = Math.round(w * scale);
+                h = Math.round(h * scale);
+            }
+
+            targetCanvas.width = w;
+            targetCanvas.height = h;
+            const ctx = targetCanvas.getContext('2d');
+            ctx.clearRect(0, 0, w, h);
+
+            // High-quality image smoothing
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            if (showOriginal) {
+                ctx.drawImage(imgObj.imgElement, 0, 0, w, h);
+                return;
+            }
+
+            const radii = getResolvedRadii(imgObj.width, imgObj.height);
+            const scaledRadii = {
+                tl: radii.tl * scale,
+                tr: radii.tr * scale,
+                br: radii.br * scale,
+                bl: radii.bl * scale,
+            };
+
+            // 1. Fill solid background if JPEG is chosen or user selected a solid background color
+            const needsSolidBg = state.bgMode === 'color' || state.exportFormat === 'image/jpeg';
+            if (needsSolidBg) {
+                ctx.fillStyle = state.bgMode === 'color' ? state.bgColor : '#FFFFFF';
+                ctx.fillRect(0, 0, w, h);
+            }
+
+            // 2. Clip rounded region and draw image
+            ctx.save();
+            traceRoundedPath(ctx, 0, 0, w, h, scaledRadii, state.curveType);
+            ctx.clip();
+            ctx.drawImage(imgObj.imgElement, 0, 0, w, h);
+            ctx.restore();
+
+            // 3. Draw optional crisp inner border/stroke
+            if (state.borderEnabled && state.borderWidth > 0) {
+                const bw = Math.max(1, state.borderWidth * scale);
+                const halfBw = bw / 2;
+                const innerRadii = {
+                    tl: Math.max(0, scaledRadii.tl - halfBw),
+                    tr: Math.max(0, scaledRadii.tr - halfBw),
+                    br: Math.max(0, scaledRadii.br - halfBw),
+                    bl: Math.max(0, scaledRadii.bl - halfBw),
+                };
+
+                ctx.save();
+                traceRoundedPath(ctx, halfBw, halfBw, w - bw, h - bw, innerRadii, state.curveType);
+                ctx.strokeStyle = state.borderColor;
+                ctx.lineWidth = bw;
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // =========================================================================
+        // 3. UI & PREVIEW UPDATES
+        // =========================================================================
+        function scheduleRender() {
+            updateStatusSummary();
+            if (renderDebounceTimer) cancelAnimationFrame(renderDebounceTimer);
+            renderDebounceTimer = requestAnimationFrame(() => {
+                state.images.forEach(item => {
+                    if (item.previewCanvas) {
+                        renderProcessedImage(item, item.previewCanvas, 640);
+                    }
+                });
+                if (state.lightboxImageId) {
+                    const lbImg = state.images.find(i => i.id === state.lightboxImageId);
+                    if (lbImg) {
+                        renderProcessedImage(lbImg, document.getElementById('lightboxCanvas'), 1600);
+                    }
+                }
+            });
+        }
+
+        function updateStatusSummary() {
+            const count = state.images.length;
+            document.getElementById('statCount').textContent = count;
+            
+            const btnExport = document.getElementById('btnExportZip');
+            const btnExportLabel = document.getElementById('btnExportLabel');
+            btnExport.disabled = count === 0;
+            btnExportLabel.textContent = count > 0 ? `Tải tất cả (${count} ảnh .ZIP)` : 'Tải tất cả (.ZIP)';
+
+            // Toggle empty state vs grid
+            const emptyDropzone = document.getElementById('emptyDropzone');
+            const previewGrid = document.getElementById('previewGrid');
+            const statusBar = document.getElementById('statusBar');
+            const btnClearAll = document.getElementById('btnClearAll');
+
+            if (count === 0) {
+                emptyDropzone.classList.remove('hidden');
+                previewGrid.classList.add('hidden');
+                previewGrid.classList.remove('grid');
+                statusBar.classList.add('hidden');
+                statusBar.classList.remove('flex');
+                btnClearAll.classList.add('hidden');
+                btnClearAll.classList.remove('inline-flex');
+            } else {
+                emptyDropzone.classList.add('hidden');
+                previewGrid.classList.remove('hidden');
+                previewGrid.classList.add('grid');
+                statusBar.classList.remove('hidden');
+                statusBar.classList.add('flex');
+                btnClearAll.classList.remove('hidden');
+                btnClearAll.classList.add('inline-flex');
+            }
+
+            // Update summary text
+            const rText = state.isIndividual 
+                ? `${state.corners.tl}/${state.corners.tr}/${state.corners.br}/${state.corners.bl}${state.unit}`
+                : `${state.uniformRadius}${state.unit}`;
+            const curveText = state.curveType === 'squircle' ? 'iOS Squircle' : 'Circular';
+            const fmtText = state.exportFormat.split('/')[1].toUpperCase();
+            document.getElementById('statSummary').textContent = `Bo góc: ${rText} · ${curveText} · Xuất ${fmtText}`;
+        }
+
+        function createImageCard(item) {
+            const card = document.createElement('div');
+            card.id = `card-${item.id}`;
+            card.className = 'group bg-white border border-studio-border rounded-xl overflow-hidden flex flex-col hover:border-zinc-300 transition-all shadow-2xs';
+
+            // Preview area with checkerboard
+            const previewWrap = document.createElement('div');
+            previewWrap.className = 'relative aspect-square bg-checkerboard p-4 flex items-center justify-center overflow-hidden cursor-zoom-in';
+            previewWrap.onclick = () => openLightbox(item.id);
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'max-w-full max-h-full object-contain transition-transform duration-150 group-hover:scale-[1.02]';
+            item.previewCanvas = canvas;
+            renderProcessedImage(item, canvas, 640);
+
+            // Hover Quick Action Overlay
+            const hoverBadge = document.createElement('div');
+            hoverBadge.className = 'opacity-0 group-hover:opacity-100 transition-opacity absolute top-2.5 right-2.5 flex items-center gap-1';
+            hoverBadge.innerHTML = `
+                <button type="button" onclick="event.stopPropagation(); downloadSingleImage('${item.id}')" title="Tải ảnh này" class="w-7 h-7 rounded-md bg-white/95 border border-zinc-200 text-zinc-700 hover:text-zinc-900 hover:bg-white flex items-center justify-center shadow-xs">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                </button>
+                <button type="button" onclick="event.stopPropagation(); removeImage('${item.id}')" title="Xóa ảnh" class="w-7 h-7 rounded-md bg-white/95 border border-zinc-200 text-zinc-500 hover:text-red-600 hover:bg-red-50 flex items-center justify-center shadow-xs">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+            `;
+
+            previewWrap.appendChild(canvas);
+            previewWrap.appendChild(hoverBadge);
+
+            // Card Footer Meta
+            const footer = document.createElement('div');
+            footer.className = 'px-3 py-2.5 border-t border-zinc-100 bg-white flex items-center justify-between gap-2';
+            footer.innerHTML = `
+                <div class="min-w-0">
+                    <p class="text-xs font-medium text-zinc-900 truncate" title="${item.name}">${item.name}</p>
+                    <p class="text-[11px] font-mono text-zinc-400">${item.width} × ${item.height}px</p>
+                </div>
+                <button type="button" onclick="openLightbox('${item.id}')" class="shrink-0 text-[11px] font-medium text-zinc-500 hover:text-zinc-900 px-2 py-1 rounded hover:bg-zinc-100 transition-colors">
+                    Soi nét
+                </button>
+            `;
+
+            card.appendChild(previewWrap);
+            card.appendChild(footer);
+            return card;
+        }
+
+        function rebuildGrid() {
+            const grid = document.getElementById('previewGrid');
+            grid.innerHTML = '';
+            state.images.forEach(item => {
+                grid.appendChild(createImageCard(item));
+            });
+            lucide.createIcons();
+            updateStatusSummary();
+        }
+
+        // =========================================================================
+        // 4. INSPECTOR CONTROLS HANDLERS
+        // =========================================================================
+        function setCurveType(type) {
+            state.curveType = type;
+            const btnCirc = document.getElementById('btnCurveCircular');
+            const btnSqui = document.getElementById('btnCurveSquircle');
+            const badge = document.getElementById('curveBadge');
+
+            if (type === 'circular') {
+                btnCirc.className = 'py-1.5 px-2.5 text-xs font-medium rounded-md bg-white text-zinc-900 shadow-2xs transition-all';
+                btnSqui.className = 'py-1.5 px-2.5 text-xs font-medium rounded-md text-zinc-600 hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5';
+                badge.textContent = 'Circular';
+            } else {
+                btnSqui.className = 'py-1.5 px-2.5 text-xs font-medium rounded-md bg-white text-zinc-900 shadow-2xs transition-all flex items-center justify-center gap-1.5';
+                btnCirc.className = 'py-1.5 px-2.5 text-xs font-medium rounded-md text-zinc-600 hover:text-zinc-900 transition-all';
+                badge.textContent = 'iOS Squircle';
+            }
+            scheduleRender();
+        }
+
+        function setUnit(unit) {
+            state.unit = unit;
+            const btnPx = document.getElementById('unitPx');
+            const btnPct = document.getElementById('unitPct');
+            const slider = document.getElementById('uniformSlider');
+            const label = document.getElementById('uniformUnitLabel');
+
+            if (unit === 'px') {
+                btnPx.className = 'px-1.5 py-0.5 rounded bg-white text-zinc-900 font-semibold shadow-2xs';
+                btnPct.className = 'px-1.5 py-0.5 rounded text-zinc-500 hover:text-zinc-900';
+                slider.max = 300;
+                label.textContent = 'px';
+            } else {
+                btnPct.className = 'px-1.5 py-0.5 rounded bg-white text-zinc-900 font-semibold shadow-2xs';
+                btnPx.className = 'px-1.5 py-0.5 rounded text-zinc-500 hover:text-zinc-900';
+                slider.max = 50;
+                if (state.uniformRadius > 50) updateUniformRadius(50);
+                label.textContent = '%';
+            }
+            scheduleRender();
+        }
+
+        function toggleIndividualCorners() {
+            state.isIndividual = !state.isIndividual;
+            const uniformEl = document.getElementById('uniformControl');
+            const indivEl = document.getElementById('individualControl');
+            const btn = document.getElementById('btnToggleIndividual');
+
+            if (state.isIndividual) {
+                uniformEl.classList.add('hidden');
+                indivEl.classList.remove('hidden');
+                indivEl.classList.add('grid');
+                btn.classList.add('bg-zinc-900', 'text-white', 'border-zinc-900');
+                btn.classList.remove('text-zinc-600', 'hover:bg-zinc-50');
+                
+                // Sync current uniform value to all 4 inputs
+                ['tl', 'tr', 'br', 'bl'].forEach(k => {
+                    state.corners[k] = state.uniformRadius;
+                    document.getElementById(`rad${k.toUpperCase()}`).value = state.uniformRadius;
+                });
+            } else {
+                uniformEl.classList.remove('hidden');
+                indivEl.classList.add('hidden');
+                indivEl.classList.remove('grid');
+                btn.classList.remove('bg-zinc-900', 'text-white', 'border-zinc-900');
+                btn.classList.add('text-zinc-600', 'hover:bg-zinc-50');
+            }
+            scheduleRender();
+        }
+
+        function updateUniformRadius(val) {
+            const num = Math.max(0, Number(val) || 0);
+            state.uniformRadius = num;
+            document.getElementById('uniformSlider').value = Math.min(num, Number(document.getElementById('uniformSlider').max));
+            document.getElementById('uniformInput').value = num;
+            clearActivePresetStyles();
+            scheduleRender();
+        }
+
+        function updateCornerRadius(corner, val) {
+            const num = Math.max(0, Number(val) || 0);
+            state.corners[corner] = num;
+            clearActivePresetStyles();
+            scheduleRender();
+        }
+
+        function clearActivePresetStyles() {
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.className = 'preset-btn py-1.5 px-1 text-[11px] font-medium border border-zinc-200 rounded-md hover:border-zinc-400 hover:bg-zinc-50 text-zinc-700 transition-colors text-center';
+                const span = btn.querySelector('span');
+                if (span) span.className = 'font-mono text-[10px] text-zinc-400';
+            });
+        }
+
+        function applyPreset(val, unit, curve) {
+            if (state.isIndividual) toggleIndividualCorners();
+            setCurveType(curve);
+            setUnit(unit);
+            updateUniformRadius(val);
+
+            // Highlight clicked preset button
+            clearActivePresetStyles();
+            if (event && event.currentTarget) {
+                const btn = event.currentTarget;
+                btn.className = 'preset-btn py-1.5 px-1 text-[11px] font-medium border border-zinc-900 bg-zinc-900 text-white rounded-md transition-colors text-center';
+                const span = btn.querySelector('span');
+                if (span) span.className = 'font-mono text-[10px] text-zinc-300';
+            }
+        }
+
+        function setBgMode(mode, color = '#FFFFFF') {
+            state.bgMode = mode;
+            const btnTrans = document.getElementById('bgBtnTransparent');
+            const label = document.getElementById('bgTypeLabel');
+
+            if (mode === 'transparent') {
+                btnTrans.classList.add('border-2', 'border-zinc-900');
+                btnTrans.classList.remove('border', 'border-zinc-300');
+                label.textContent = 'Trong suốt';
+            } else {
+                state.bgColor = color;
+                document.getElementById('bgColorPicker').value = color;
+                btnTrans.classList.remove('border-2', 'border-zinc-900');
+                btnTrans.classList.add('border', 'border-zinc-300');
+                label.textContent = color.toUpperCase();
+            }
+            scheduleRender();
+        }
+
+        function toggleBorder(enabled) {
+            state.borderEnabled = enabled;
+            const controls = document.getElementById('borderControls');
+            if (enabled) {
+                controls.classList.remove('hidden');
+            } else {
+                controls.classList.add('hidden');
+            }
+            scheduleRender();
+        }
+
+        function updateBorderWidth(val) {
+            const num = Math.max(1, Number(val) || 1);
+            state.borderWidth = num;
+            document.getElementById('borderWidthSlider').value = Math.min(num, 40);
+            document.getElementById('borderWidthInput').value = num;
+            scheduleRender();
+        }
+
+        function updateBorderColor(color) {
+            state.borderColor = color;
+            scheduleRender();
+        }
+
+        function updateExportFormat(format) {
+            state.exportFormat = format;
+            const qualityCtrl = document.getElementById('qualityControl');
+            if (format === 'image/png') {
+                qualityCtrl.classList.add('hidden');
+            } else {
+                qualityCtrl.classList.remove('hidden');
+            }
+            scheduleRender();
+        }
+
+        function updateQuality(val) {
+            state.quality = Number(val) / 100;
+            document.getElementById('qualityValue').textContent = `${val}%`;
+        }
+
+        // =========================================================================
+        // 5. FILE LOADING, CLIPBOARD PASTE & SAMPLE IMAGES
+        // =========================================================================
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files || []);
+            processIncomingFiles(files);
+            event.target.value = ''; // Reset input so same file can be added again
+        }
+
+        function processIncomingFiles(files) {
+            const validFiles = files.filter(f => f.type.startsWith('image/'));
+            if (validFiles.length === 0) {
+                showToast('Vui lòng chọn định dạng ảnh hợp lệ (JPG, PNG, WebP).', 'error');
+                return;
+            }
+
+            let loadedCount = 0;
+            validFiles.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const id = 'img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                        state.images.push({
+                            id,
+                            name: file.name,
+                            width: img.naturalWidth,
+                            height: img.naturalHeight,
+                            imgElement: img,
+                            previewCanvas: null
+                        });
+                        loadedCount++;
+                        if (loadedCount === validFiles.length) {
+                            rebuildGrid();
+                            showToast(`Đã thêm ${loadedCount} ảnh vào không gian làm việc.`);
+                        }
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Drag & Drop Listeners
+        const dropTarget = document.body;
+        const dragOverlay = document.getElementById('dragOverlay');
+        let dragCounter = 0;
+
+        dropTarget.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            dragOverlay.classList.remove('hidden');
+            dragOverlay.classList.add('flex');
+        });
+
+        dropTarget.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter <= 0) {
+                dragCounter = 0;
+                dragOverlay.classList.add('hidden');
+                dragOverlay.classList.remove('flex');
+            }
+        });
+
+        dropTarget.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        dropTarget.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            dragOverlay.classList.add('hidden');
+            dragOverlay.classList.remove('flex');
+            if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+                processIncomingFiles(Array.from(e.dataTransfer.files));
+            }
+        });
+
+        // Clipboard Paste (Ctrl+V)
+        window.addEventListener('paste', (e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            const imageFiles = [];
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    if (blob) {
+                        const namedFile = new File([blob], `clipboard-${Date.now()}.png`, { type: blob.type });
+                        imageFiles.push(namedFile);
+                    }
+                }
+            }
+            if (imageFiles.length > 0) {
+                processIncomingFiles(imageFiles);
+            }
+        });
+
+        // Generate 4 High-Res Architectural / Swiss Graphic Sample Images on Canvas
+        function loadSampleImages() {
+            const samples = [
+                {
+                    name: 'swiss-grid-poster.png',
+                    w: 1000, h: 1000,
+                    draw: (ctx, w, h) => {
+                        ctx.fillStyle = '#18181B';
+                        ctx.fillRect(0, 0, w, h);
+                        ctx.fillStyle = '#F4F4F5';
+                        ctx.beginPath();
+                        ctx.arc(w * 0.5, h * 0.5, w * 0.32, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#EA580C';
+                        ctx.fillRect(w * 0.18, h * 0.18, w * 0.22, h * 0.22);
+                    }
+                },
+                {
+                    name: 'product-card-photo.jpg',
+                    w: 1200, h: 900,
+                    draw: (ctx, w, h) => {
+                        const grad = ctx.createLinearGradient(0, 0, w, h);
+                        grad.addColorStop(0, '#E2E8F0');
+                        grad.addColorStop(1, '#94A3B8');
+                        ctx.fillStyle = grad;
+                        ctx.fillRect(0, 0, w, h);
+                        
+                        // Minimalist geometric sculpture
+                        ctx.fillStyle = '#0F172A';
+                        ctx.fillRect(w * 0.25, h * 0.22, w * 0.5, h * 0.56);
+                        ctx.fillStyle = '#38BDF8';
+                        ctx.beginPath();
+                        ctx.arc(w * 0.62, h * 0.38, h * 0.14, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                },
+                {
+                    name: 'studio-avatar-portrait.png',
+                    w: 800, h: 800,
+                    draw: (ctx, w, h) => {
+                        ctx.fillStyle = '#F1F5F9';
+                        ctx.fillRect(0, 0, w, h);
+                        // Abstract Bauhaus avatar
+                        ctx.fillStyle = '#2563EB';
+                        ctx.beginPath();
+                        ctx.arc(w * 0.5, h * 0.42, w * 0.2, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#18181B';
+                        ctx.beginPath();
+                        ctx.arc(w * 0.5, h * 0.92, w * 0.36, Math.PI, 0);
+                        ctx.fill();
+                    }
+                },
+                {
+                    name: 'ui-banner-wide.png',
+                    w: 1400, h: 800,
+                    draw: (ctx, w, h) => {
+                        ctx.fillStyle = '#09090B';
+                        ctx.fillRect(0, 0, w, h);
+                        ctx.strokeStyle = '#27272A';
+                        ctx.lineWidth = 2;
+                        for (let x = 100; x < w; x += 100) {
+                            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+                        }
+                        for (let y = 100; y < h; y += 100) {
+                            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+                        }
+                        ctx.fillStyle = '#10B981';
+                        ctx.fillRect(w * 0.15, h * 0.35, w * 0.7, h * 0.3);
+                    }
+                }
+            ];
+
+            let loaded = 0;
+            samples.forEach(s => {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = s.w;
+                tempCanvas.height = s.h;
+                s.draw(tempCanvas.getContext('2d'), s.w, s.h);
+
+                const img = new Image();
+                img.onload = () => {
+                    const id = 'sample_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                    state.images.push({
+                        id,
+                        name: s.name,
+                        width: s.w,
+                        height: s.h,
+                        imgElement: img,
+                        previewCanvas: null
+                    });
+                    loaded++;
+                    if (loaded === samples.length) {
+                        rebuildGrid();
+                        showToast('Đã tải 4 ảnh đồ họa mẫu chuẩn độ phân giải cao.');
+                    }
+                };
+                img.src = tempCanvas.toDataURL('image/png');
+            });
+        }
+
+        function removeImage(id) {
+            state.images = state.images.filter(i => i.id !== id);
+            const card = document.getElementById(`card-${id}`);
+            if (card) card.remove();
+            updateStatusSummary();
+        }
+
+        function clearAllImages() {
+            state.images = [];
+            rebuildGrid();
+            showToast('Đã dọn sạch danh sách ảnh.');
+        }
+
+        // =========================================================================
+        // 6. LIGHTBOX MODAL & SINGLE / BATCH EXPORT
+        // =========================================================================
+        function openLightbox(id) {
+            const item = state.images.find(i => i.id === id);
+            if (!item) return;
+
+            state.lightboxImageId = id;
+            document.getElementById('lbTitle').textContent = item.name;
+            document.getElementById('lbDimensions').textContent = `${item.width} × ${item.height}px`;
+            
+            const lbCanvas = document.getElementById('lightboxCanvas');
+            renderProcessedImage(item, lbCanvas, 1600, false);
+
+            document.getElementById('lbDownloadBtn').onclick = () => downloadSingleImage(id);
+            document.getElementById('lightboxModal').classList.remove('hidden');
+        }
+
+        function showOriginalInLightbox(showOrig) {
+            if (!state.lightboxImageId) return;
+            const item = state.images.find(i => i.id === state.lightboxImageId);
+            if (!item) return;
+            renderProcessedImage(item, document.getElementById('lightboxCanvas'), 1600, showOrig);
+        }
+
+        function closeLightbox(e) {
+            if (e && e.target !== document.getElementById('lightboxModal')) return;
+            state.lightboxImageId = null;
+            document.getElementById('lightboxModal').classList.add('hidden');
+        }
+
+        // Helper to generate output filename with suffix and extension
+        function getOutputFilename(originalName) {
+            const dotIndex = originalName.lastIndexOf('.');
+            const baseName = dotIndex !== -1 ? originalName.substring(0, dotIndex) : originalName;
+            const suffix = document.getElementById('fileSuffix').value || '';
+            const extMap = {
+                'image/png': 'png',
+                'image/webp': 'webp',
+                'image/jpeg': 'jpg'
+            };
+            const ext = extMap[state.exportFormat] || 'png';
+            return `${baseName}${suffix}.${ext}`;
+        }
+
+        // Helper to render full-resolution Blob for an image
+        function renderFullResBlob(item) {
+            return new Promise((resolve) => {
+                const offscreen = document.createElement('canvas');
+                renderProcessedImage(item, offscreen, null, false);
+                offscreen.toBlob((blob) => {
+                    resolve(blob);
+                }, state.exportFormat, state.quality);
+            });
+        }
+
+        async function downloadSingleImage(id) {
+            const item = state.images.find(i => i.id === id);
+            if (!item) return;
+
+            const blob = await renderFullResBlob(item);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = getOutputFilename(item.name);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`Đã tải xuống ${getOutputFilename(item.name)}`);
+        }
+
+        async function exportAllAsZip() {
+            if (state.images.length === 0) return;
+
+            const btn = document.getElementById('btnExportZip');
+            const progressWrap = document.getElementById('exportProgressWrap');
+            const progressBar = document.getElementById('exportProgressBar');
+            const progressPct = document.getElementById('exportProgressPct');
+            const progressText = document.getElementById('exportProgressText');
+
+            btn.disabled = true;
+            progressWrap.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressPct.textContent = '0%';
+
+            try {
+                const zip = new JSZip();
+                const usedNames = new Set();
+                const total = state.images.length;
+
+                for (let i = 0; i < total; i++) {
+                    const item = state.images[i];
+                    progressText.textContent = `Đang xử lý (${i + 1}/${total})...`;
+                    
+                    const blob = await renderFullResBlob(item);
+                    let fileName = getOutputFilename(item.name);
+                    
+                    // Avoid duplicate filenames inside ZIP
+                    let counter = 1;
+                    while (usedNames.has(fileName)) {
+                        const dotIdx = fileName.lastIndexOf('.');
+                        fileName = `${fileName.substring(0, dotIdx)}_${counter}${fileName.substring(dotIdx)}`;
+                        counter++;
+                    }
+                    usedNames.add(fileName);
+
+                    zip.file(fileName, blob);
+
+                    const pct = Math.round(((i + 1) / total) * 80);
+                    progressBar.style.width = `${pct}%`;
+                    progressPct.textContent = `${pct}%`;
+                }
+
+                progressText.textContent = 'Đang đóng gói file .ZIP...';
+                const zipBlob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+                    const zipPct = 80 + Math.round(metadata.percent * 0.2);
+                    progressBar.style.width = `${zipPct}%`;
+                    progressPct.textContent = `${zipPct}%`;
+                });
+
+                const url = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `rounded-images-${Date.now()}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast(`Xuất thành công ${total} ảnh vào file ZIP!`);
+            } catch (err) {
+                console.error(err);
+                showToast('Có lỗi xảy ra khi nén file ZIP.', 'error');
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => {
+                    progressWrap.classList.add('hidden');
+                }, 1200);
+            }
+        }
+
+        // =========================================================================
+        // 7. TOAST NOTIFICATIONS & KEYBOARD SHORTCUTS
+        // =========================================================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const icon = type === 'error' ? 'alert-circle' : 'check-circle-2';
+            const iconColor = type === 'error' ? 'text-red-400' : 'text-emerald-400';
+
+            toast.className = 'flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-zinc-900 text-white text-xs font-medium shadow-lg border border-zinc-800 transition-all duration-200 translate-y-2 opacity-0';
+            toast.innerHTML = `
+                <i data-lucide="${icon}" class="w-4 h-4 ${iconColor} shrink-0"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 200);
+            }, 3000);
+        }
+
+        // Escape key to close Lightbox
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && state.lightboxImageId) {
+                closeLightbox();
+            }
+        });
+    </script>
+</body>
+</html>
